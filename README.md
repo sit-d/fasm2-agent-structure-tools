@@ -4,6 +4,8 @@
 
 Python static-analysis helpers for reviewing fasm2/fasmg-style assembly source trees from outside the target repository. The tools are intended for agents and reviewers that need higher-level structure signals before suggesting multi-file implementation changes.
 
+See [`docs/agentic-refactor-workflow.md`](docs/agentic-refactor-workflow.md) for the full baseline → task-card → target verification → before/after comparison loop.
+
 The first pass is intentionally heuristic and source-preserving. It does not try to fully expand fasm2/fasmg macros. Instead it extracts enough structure to guide review and implementation planning:
 
 - function/data graph: calls, ABI calls, unresolved/indirect calls, and data references
