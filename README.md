@@ -8,7 +8,7 @@ The first pass is intentionally heuristic and source-preserving. It does not try
 - ABI pressure score: integer `abi_calls + parameter_uses_after_abi_call`
 - hierarchy/layering: Tarjan SCCs and leaf-first condensation layers
 - visual reports that make questionable structure decisions easier to spot
-- agentic refactor advice that turns the metrics into prioritized review actions
+- agentic refactor advice and task plans that turn the metrics into prioritized review actions
 
 ## Install / run from source
 
@@ -16,13 +16,13 @@ From this tool repository:
 
 ```sh
 uv run --with pytest pytest -q
-python -m fasm2_structure /path/to/fasm2-or-fasmg-source --report --advice
+python -m fasm2_structure /path/to/fasm2-or-fasmg-source --report --advice --plan
 ```
 
 Example for analyzing only selected subtrees of a target repo:
 
 ```sh
-python -m fasm2_structure /path/to/fasm2 source/windows examples tests/ntdll --report --advice
+python -m fasm2_structure /path/to/fasm2 source/windows examples tests/ntdll --report --advice --plan
 ```
 
 Use a narrower path while iterating:
@@ -43,6 +43,8 @@ Outputs are written under the target root by default, or under `--out` if suppli
 - `mermaid/top-pressure.mmd` — top ABI-pressure neighborhood snapshot
 - `refactor-advice.json` — machine-readable prioritized agent guidance
 - `refactor-advice.md` — human-readable refactor review plan
+- `refactor-plan.json` — machine-readable scoped refactor task cards
+- `refactor-plan.md` — human-readable task plan with steps and verification gates
 
 Internal calls made through ABI-style macros are emitted as `abi-call`: they contribute to both ABI pressure and the function dependency graph.
 
@@ -111,7 +113,7 @@ The generated `refactor-advice.md` is intentionally action-oriented:
 - use pure utilities as safe extraction/reuse candidates
 - regenerate advice after a refactor and check whether pressure moved down or became better isolated
 
-The JSON form is better for automated agents; the Markdown form is better for human review notes or PR comments.
+Use `--plan` with `--advice` when an agent needs concrete task cards. The plan expands the highest-priority pressure targets into one-target-per-task scopes with expected outcomes, steps, and verification gates. The JSON forms are better for automated agents; the Markdown forms are better for human review notes or PR comments.
 
 ## Known limitations
 

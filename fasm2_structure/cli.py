@@ -7,6 +7,7 @@ from pathlib import Path
 from .analysis import build_structure
 from .asm_parser import parse_tree
 from .graph import layering_to_dict, model_to_dict, write_dot, write_json
+from .plan import write_refactor_plan_from_data
 from .refactor import write_refactor_advice_from_data
 from .report import build_report_data, write_report_from_data
 
@@ -20,6 +21,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-dot", action="store_true", help="Do not write Graphviz DOT")
     p.add_argument("--report", action="store_true", help="Write interactive HTML report and Mermaid focused graphs")
     p.add_argument("--advice", action="store_true", help="Write agentic refactor advice JSON and Markdown")
+    p.add_argument("--plan", action="store_true", help="Write agentic refactor task plan JSON and Markdown")
     p.add_argument("--limit", type=int, default=20, help="Rows to print in summary tables")
     return p
 
@@ -66,9 +68,10 @@ def main(argv: list[str] | None = None) -> int:
     write_json(out / "layers.json", layer_info)
     if not args.no_dot:
         write_dot(out / "structure.dot", model)
-    report_data = build_report_data(model) if args.report or args.advice else None
+    report_data = build_report_data(model) if args.report or args.advice or args.plan else None
     report_paths = write_report_from_data(out, report_data) if args.report and report_data is not None else {}
     advice_paths = write_refactor_advice_from_data(out, report_data) if args.advice and report_data is not None else {}
+    plan_paths = write_refactor_plan_from_data(out, report_data) if args.plan and report_data is not None else {}
     payload = {"structure": model_to_dict(model), "layers": layer_info}
     if args.format == "json":
         print(json.dumps(payload, indent=2, sort_keys=True))
@@ -81,6 +84,8 @@ def main(argv: list[str] | None = None) -> int:
         for label, path in report_paths.items():
             print(f"wrote {label}: {path}")
         for label, path in advice_paths.items():
+            print(f"wrote {label}: {path}")
+        for label, path in plan_paths.items():
             print(f"wrote {label}: {path}")
     return 0
 

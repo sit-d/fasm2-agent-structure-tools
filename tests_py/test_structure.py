@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fasm2_structure.analysis import build_structure, condensation_layers, graph_adjacency, tarjan_scc
 from fasm2_structure.asm_parser import parse_tree
+from fasm2_structure.plan import build_refactor_plan_from_advice, write_refactor_plan_from_data
 from fasm2_structure.refactor import AdviceThresholds, build_refactor_advice, write_refactor_advice
 from fasm2_structure.report import build_report_data, write_report
 
@@ -66,6 +67,19 @@ payload db 'x',0
             for path in advice_paths.values():
                 self.assertTrue(path.exists(), path)
                 self.assertGreater(path.stat().st_size, 0, path)
+            plan = build_refactor_plan_from_advice(advice, limit=1)
+            self.assertEqual(len(plan["tasks"]), 1)
+            self.assertIn(
+                "Verification",
+                Path(
+                    write_refactor_plan_from_data(
+                        root / "analysis",
+                        report_data,
+                        limit=1,
+                        thresholds=AdviceThresholds(medium_pressure=1),
+                    )["refactor_plan_md"]
+                ).read_text(),
+            )
 
 
 if __name__ == "__main__":
