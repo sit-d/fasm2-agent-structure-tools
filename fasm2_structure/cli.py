@@ -9,7 +9,7 @@ from .asm_parser import parse_tree
 from .compare import load_report_data, write_comparison
 from .graph import layering_to_dict, model_to_dict, write_dot, write_json
 from .plan import write_refactor_plan_from_data
-from .refactor import write_refactor_advice_from_data
+from .refactor import AdviceThresholds, write_refactor_advice_from_data
 from .report import build_report_data, write_report_from_data
 
 
@@ -25,6 +25,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--plan", action="store_true", help="Write agentic refactor task plan JSON and Markdown")
     p.add_argument("--compare-report", help="Compare the current report data against a previous report-data.json")
     p.add_argument("--limit", type=int, default=20, help="Rows to print in summary tables")
+    p.add_argument("--plan-limit", type=int, default=8, help="Number of refactor task cards to write with --plan")
+    p.add_argument("--medium-pressure", type=int, default=10, help="Minimum ABI pressure for medium-priority advice/plan targets")
+    p.add_argument("--high-pressure", type=int, default=20, help="Minimum ABI pressure for high-priority advice/plan targets")
     return p
 
 
@@ -71,9 +74,10 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_dot:
         write_dot(out / "structure.dot", model)
     report_data = build_report_data(model) if args.report or args.advice or args.plan or args.compare_report else None
+    thresholds = AdviceThresholds(medium_pressure=args.medium_pressure, high_pressure=args.high_pressure)
     report_paths = write_report_from_data(out, report_data) if args.report and report_data is not None else {}
-    advice_paths = write_refactor_advice_from_data(out, report_data) if args.advice and report_data is not None else {}
-    plan_paths = write_refactor_plan_from_data(out, report_data) if args.plan and report_data is not None else {}
+    advice_paths = write_refactor_advice_from_data(out, report_data, thresholds) if args.advice and report_data is not None else {}
+    plan_paths = write_refactor_plan_from_data(out, report_data, limit=args.plan_limit, thresholds=thresholds) if args.plan and report_data is not None else {}
     compare_paths = write_comparison(out, load_report_data(args.compare_report), report_data, limit=args.limit) if args.compare_report and report_data is not None else {}
     payload = {"structure": model_to_dict(model), "layers": layer_info}
     if args.format == "json":

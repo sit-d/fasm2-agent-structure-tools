@@ -1,9 +1,11 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
 from fasm2_structure.analysis import build_structure, condensation_layers, graph_adjacency, tarjan_scc
 from fasm2_structure.asm_parser import parse_tree
+from fasm2_structure.cli import main
 from fasm2_structure.compare import compare_report_data, write_comparison
 from fasm2_structure.plan import build_refactor_plan_from_advice, write_refactor_plan_from_data
 from fasm2_structure.refactor import AdviceThresholds, build_refactor_advice, write_refactor_advice
@@ -89,6 +91,22 @@ payload db 'x',0
             for path in compare_paths.values():
                 self.assertTrue(path.exists(), path)
                 self.assertGreater(path.stat().st_size, 0, path)
+            self.assertEqual(
+                main([
+                    str(root),
+                    "--plan",
+                    "--plan-limit",
+                    "1",
+                    "--medium-pressure",
+                    "1",
+                    "--out",
+                    "cli-analysis",
+                    "--no-dot",
+                ]),
+                0,
+            )
+            cli_plan = json.loads((root / "cli-analysis" / "refactor-plan.json").read_text())
+            self.assertEqual(len(cli_plan["tasks"]), 1)
 
 
 if __name__ == "__main__":

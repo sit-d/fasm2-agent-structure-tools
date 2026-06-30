@@ -179,10 +179,10 @@ def advice_markdown(advice: dict[str, Any], title: str = "Agentic refactor advic
     return "\n".join(lines)
 
 
-def write_refactor_advice_from_data(out_dir: str | Path, data: dict[str, Any]) -> dict[str, Path]:
+def write_refactor_advice_from_data(out_dir: str | Path, data: dict[str, Any], thresholds: AdviceThresholds | None = None) -> dict[str, Path]:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    advice = build_refactor_advice_from_data(data)
+    advice = build_refactor_advice_from_data(data, thresholds)
     json_path = out / "refactor-advice.json"
     md_path = out / "refactor-advice.md"
     json_path.write_text(json.dumps(advice, indent=2, sort_keys=True) + "\n", encoding="utf-8")

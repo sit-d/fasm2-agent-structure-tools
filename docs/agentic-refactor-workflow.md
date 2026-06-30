@@ -8,7 +8,7 @@ Run the analyzer into a stable output directory before editing the target projec
 
 ```sh
 python -m fasm2_structure /path/to/target source/windows examples tests/ntdll \
-  --report --advice --plan \
+  --report --advice --plan --plan-limit 8 \
   --out /path/to/baseline-analysis
 ```
 
@@ -30,7 +30,7 @@ A good first task has:
 - a source path inside the intended scope
 - a verification path you can actually run
 
-Skip tasks in examples, generated code, or out-of-scope modules unless those are the intended target.
+Skip tasks in examples, generated code, or out-of-scope modules unless those are the intended target. Use `--plan-limit` to keep a delegation batch small, and tune `--medium-pressure` / `--high-pressure` if the default thresholds are too high or low for the target corpus.
 
 ## 3. Inspect before editing
 
