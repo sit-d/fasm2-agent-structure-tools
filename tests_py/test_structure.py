@@ -42,6 +42,12 @@ proc cleanup_idiom
         ret
 endp
 
+proc pre_call_only
+        mov eax,ecx
+        invoke MessageBoxA,0,0,0,0
+        ret
+endp
+
 start:
         call helper
         jmp wrapper
@@ -62,15 +68,25 @@ payload db 'x',0
                 model.metrics["wrapper"].abi_calls + model.metrics["wrapper"].parameter_uses_after_abi_call,
             )
             self.assertEqual(model.metrics["wrapper"].pressure_class, "abi_state_pressure")
+            self.assertEqual(model.metrics["wrapper"].procedure_regime, "post_call_state")
             self.assertEqual(model.metrics["cleanup_idiom"].parameter_uses_after_abi_call, 0)
             self.assertEqual(model.metrics["cleanup_idiom"].pressure_class, "abi_boundary")
+            self.assertEqual(model.metrics["cleanup_idiom"].procedure_regime, "abi_boundary")
+            rcx_evidence = model.metrics["cleanup_idiom"].parameter_lifetime_evidence["rcx"]
+            self.assertTrue(rcx_evidence["redefined_after_call"])
+            self.assertFalse(rcx_evidence["read_after_call"])
+            self.assertEqual(rcx_evidence["known_good_idiom"], "fresh rcx null-check for first-argument ABI use")
+            self.assertEqual(model.metrics["pre_call_only"].procedure_regime, "pre_call_only_use")
             adj = graph_adjacency(model)
             layers = condensation_layers(adj, tarjan_scc(adj))
             self.assertTrue(layers)
             self.assertTrue(any(edge.target == "MessageBoxA" and edge.kind == "abi" for edge in model.edges))
             report_data = build_report_data(model)
-            self.assertEqual(report_data["summary"]["functions"], 4)
+            self.assertEqual(report_data["summary"]["functions"], 5)
             self.assertIn("module_graph", report_data)
+            cleanup_row = next(row for row in report_data["functions"] if row["name"] == "cleanup_idiom")
+            self.assertEqual(cleanup_row["procedure_regime"], "abi_boundary")
+            self.assertIn("parameter_lifetime_evidence", cleanup_row)
             paths = write_report(root / "analysis", model)
             for path in paths.values():
                 self.assertTrue(path.exists(), path)

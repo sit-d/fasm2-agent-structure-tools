@@ -107,8 +107,11 @@ def build_report_data(model: StructureModel) -> dict[str, Any]:
                 "abi_calls": m.abi_calls,
                 "tail_abi_calls": m.tail_abi_calls,
                 "parameter_uses_after_abi_call": m.parameter_uses_after_abi_call,
+                "pre_call_parameter_uses": m.pre_call_parameter_uses,
                 "abi_pressure": m.abi_pressure,
                 "pressure_class": m.pressure_class,
+                "procedure_regime": m.procedure_regime,
+                "parameter_lifetime_evidence": m.parameter_lifetime_evidence,
                 "notes": m.notes,
             }
         )

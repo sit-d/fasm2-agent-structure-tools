@@ -85,6 +85,12 @@ Current parameter evidence includes:
 
 The analyzer tracks simple parameter-register redefinitions after ABI calls (`mov`/`lea`/`xor` to an ABI argument register). This avoids treating deliberate first-argument idioms such as `mov rcx,[mem]` + `jrcxz` + `invoke Api,rcx` as incoming parameter state surviving across an ABI call.
 
+`report-data.json` also carries evidence-oriented procedure fields for each function:
+
+- `procedure_regime` — `pure_leaf`, `pre_call_only_use`, `abi_boundary`, or `post_call_state`
+- `pre_call_parameter_uses`
+- `parameter_lifetime_evidence` for `rcx`, `rdx`, `r8`, and `r9`, including first use, last use before first call, overwrite/redefinition evidence, post-call reads, simple spill evidence, and recognized known-good idioms
+
 ## Layering interpretation
 
 `layers_leaf_first` in `layers.json` is ordered for implementation work:

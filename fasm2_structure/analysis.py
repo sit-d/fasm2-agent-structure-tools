@@ -8,6 +8,13 @@ from .asm_parser import ABI_MACROS, CALL_RE, IDENT_RE, INSTRUCTIONS, ParseResult
 
 REGISTER_PARAMS_X64 = {"rcx", "rdx", "r8", "r9", "ecx", "edx", "r8d", "r9d", "cl", "dl", "r8b", "r9b"}
 REGISTER_PARAMS_X86 = {"ecx", "edx", "cx", "dx", "cl", "dl"}
+ABI_ARGUMENT_REGS = ("rcx", "rdx", "r8", "r9")
+REGISTER_ALIASES = {
+    "rcx": {"rcx", "ecx", "cx", "cl"},
+    "rdx": {"rdx", "edx", "dx", "dl"},
+    "r8": {"r8", "r8d", "r8w", "r8b"},
+    "r9": {"r9", "r9d", "r9w", "r9b"},
+}
 REGISTER_REDEFINITION_OPS = {"mov", "lea", "xor"}
 STACK_PARAM_RE = re.compile(r"\[(?:e|r)?bp\s*\+\s*(?:[1-9][0-9]*|[A-Za-z_.$?@][\w.$?@]*)", re.I)
 MEMREF_RE = re.compile(r"\[([^\]]+)\]")
@@ -31,8 +38,11 @@ class FunctionMetrics:
     abi_calls: int = 0
     tail_abi_calls: int = 0
     parameter_uses_after_abi_call: int = 0
+    pre_call_parameter_uses: int = 0
     abi_pressure: int = 0
     pressure_class: str = "pure_leaf"
+    procedure_regime: str = "pure_leaf"
+    parameter_lifetime_evidence: dict[str, dict[str, object]] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
 @dataclass
@@ -100,6 +110,87 @@ def count_parameter_uses(line: SourceLine, param_tokens: set[str]) -> int:
     return count
 
 
+def line_register_uses(line: SourceLine, canonical_reg: str) -> bool:
+    if canonical_reg == "rcx" and line_op(line) == "jrcxz":
+        return True
+    aliases = REGISTER_ALIASES.get(canonical_reg, {canonical_reg})
+    return any(ident.lower() in aliases for ident in IDENT_RE.findall(line.code))
+
+
+def line_op(line: SourceLine) -> str:
+    return (line.code.strip().split(None, 1) or [""])[0].lower()
+
+
+def evidence_line(line: SourceLine) -> dict[str, object]:
+    return {"path": line.path, "line": line.line_no, "text": line.text.strip()}
+
+
+def new_lifetime_evidence() -> dict[str, dict[str, object]]:
+    return {
+        reg: {
+            "register": reg,
+            "first_use": None,
+            "last_use_before_first_call": None,
+            "overwritten": False,
+            "first_overwrite": None,
+            "read_after_call": False,
+            "first_read_after_call": None,
+            "redefined_after_call": False,
+            "first_redefinition_after_call": None,
+            "spilled_before_first_call": False,
+            "first_spill_before_first_call": None,
+            "known_good_idiom": None,
+        }
+        for reg in ABI_ARGUMENT_REGS
+    }
+
+
+def register_defined_on_line(line: SourceLine, canonical_reg: str) -> bool:
+    parts = line.code.strip().split(None, 1)
+    if len(parts) != 2 or parts[0].lower() not in REGISTER_REDEFINITION_OPS:
+        return False
+    dest = parts[1].split(",", 1)[0].strip().lower()
+    return dest in REGISTER_ALIASES.get(canonical_reg, {canonical_reg})
+
+
+def register_spilled_on_line(line: SourceLine, canonical_reg: str) -> bool:
+    parts = line.code.strip().split(None, 1)
+    if len(parts) != 2 or parts[0].lower() != "mov" or "," not in parts[1]:
+        return False
+    dest, src = (part.strip().lower() for part in parts[1].split(",", 1))
+    return dest.startswith("[") and src in REGISTER_ALIASES.get(canonical_reg, {canonical_reg})
+
+
+def update_lifetime_evidence(metric: FunctionMetrics, line: SourceLine, *, after_call: bool, before_first_call: bool) -> None:
+    for reg in ABI_ARGUMENT_REGS:
+        if not line_register_uses(line, reg):
+            continue
+        evidence = metric.parameter_lifetime_evidence[reg]
+        line_data = evidence_line(line)
+        if evidence["first_use"] is None:
+            evidence["first_use"] = line_data
+        if before_first_call:
+            evidence["last_use_before_first_call"] = line_data
+            metric.pre_call_parameter_uses += 1
+            if register_spilled_on_line(line, reg) and not evidence["spilled_before_first_call"]:
+                evidence["spilled_before_first_call"] = True
+                evidence["first_spill_before_first_call"] = line_data
+        if after_call and line_op(line) != "jrcxz" and not register_defined_on_line(line, reg) and not evidence["redefined_after_call"]:
+            evidence["read_after_call"] = True
+            if evidence["first_read_after_call"] is None:
+                evidence["first_read_after_call"] = line_data
+        if reg == "rcx" and after_call and line_op(line) == "jrcxz" and evidence["redefined_after_call"]:
+            evidence["known_good_idiom"] = "fresh rcx null-check for first-argument ABI use"
+        if register_defined_on_line(line, reg):
+            evidence["overwritten"] = True
+            if evidence["first_overwrite"] is None:
+                evidence["first_overwrite"] = line_data
+            if after_call:
+                evidence["redefined_after_call"] = True
+                if evidence["first_redefinition_after_call"] is None:
+                    evidence["first_redefinition_after_call"] = line_data
+
+
 def redefined_parameter_registers(line: SourceLine, param_tokens: set[str]) -> set[str]:
     parts = line.code.strip().split(None, 1)
     if len(parts) != 2 or parts[0].lower() not in REGISTER_REDEFINITION_OPS:
@@ -131,10 +222,13 @@ def build_structure(parsed: ParseResult) -> StructureModel:
         if sym.kind != "function":
             continue
         metric = FunctionMetrics(name=name, path=sym.path, line_no=sym.line_no)
+        metric.parameter_lifetime_evidence = new_lifetime_evidence()
         param_tokens = infer_param_tokens(sym)
         live_param_tokens = set(param_tokens)
         seen_abi = False
+        first_call_seen = False
         for idx, line in enumerate(sym.body):
+            update_lifetime_evidence(metric, line, after_call=first_call_seen, before_first_call=not first_call_seen)
             ins = instruction_of(line)
             if ins:
                 op, raw_target = ins
@@ -147,6 +241,7 @@ def build_structure(parsed: ParseResult) -> StructureModel:
                 elif op == "call" and target not in known_functions and target not in external_names:
                     kind = "indirect-call" if any(ch in raw_target for ch in "[]") else "unresolved-call"
                 metric.total_calls += 1
+                first_call_seen = True
                 if kind in {"call", "tail-call", "jump", "abi-call"} and target in known_functions:
                     metric.internal_calls += 1
                 if kind in {"abi", "abi-call"}:
@@ -178,6 +273,14 @@ def build_structure(parsed: ParseResult) -> StructureModel:
         else:
             metric.pressure_class = "abi_state_pressure"
             metric.notes.append("parameter evidence survives across ABI calls; implementation may need frame/register choreography")
+        if metric.abi_calls == 0:
+            metric.procedure_regime = "pure_leaf"
+        elif metric.parameter_uses_after_abi_call > 0:
+            metric.procedure_regime = "post_call_state"
+        elif metric.pre_call_parameter_uses > 0:
+            metric.procedure_regime = "pre_call_only_use"
+        else:
+            metric.procedure_regime = "abi_boundary"
         metrics[name] = metric
 
     return StructureModel(parsed.symbols, edges, metrics)
