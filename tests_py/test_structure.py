@@ -8,7 +8,7 @@ from fasm2_structure.asm_parser import parse_tree
 from fasm2_structure.cli import main
 from fasm2_structure.compare import compare_report_data, write_comparison
 from fasm2_structure.plan import build_refactor_plan_from_advice, write_refactor_plan_from_data
-from fasm2_structure.refactor import AdviceThresholds, build_refactor_advice, write_refactor_advice
+from fasm2_structure.refactor import AdviceFilters, AdviceThresholds, build_refactor_advice, write_refactor_advice
 from fasm2_structure.report import build_report_data, write_report
 
 
@@ -66,6 +66,14 @@ payload db 'x',0
             advice = build_refactor_advice(model, AdviceThresholds(medium_pressure=1))
             self.assertIn("agent_workflow", advice)
             self.assertTrue(any(row["name"] == "wrapper" for row in advice["pressure_targets"]))
+            filtered = build_refactor_advice(
+                model,
+                AdviceThresholds(medium_pressure=1),
+                AdviceFilters(include_paths=("sample.asm",), exclude_paths=("missing",)),
+            )
+            self.assertTrue(filtered["pressure_targets"])
+            excluded = build_refactor_advice(model, AdviceThresholds(medium_pressure=1), AdviceFilters(exclude_paths=("sample.asm",)))
+            self.assertFalse(excluded["pressure_targets"])
             advice_paths = write_refactor_advice(root / "analysis", model)
             for path in advice_paths.values():
                 self.assertTrue(path.exists(), path)
@@ -99,6 +107,8 @@ payload db 'x',0
                     "1",
                     "--medium-pressure",
                     "1",
+                    "--include-path",
+                    "sample.asm",
                     "--out",
                     "cli-analysis",
                     "--no-dot",

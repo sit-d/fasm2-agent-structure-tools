@@ -26,7 +26,7 @@ python -m fasm2_structure /path/to/fasm2-or-fasmg-source --report --advice --pla
 Example for analyzing only selected subtrees of a target repo:
 
 ```sh
-python -m fasm2_structure /path/to/fasm2 source/windows examples tests/ntdll --report --advice --plan --plan-limit 5
+python -m fasm2_structure /path/to/fasm2 source/windows examples tests/ntdll --report --advice --plan --plan-limit 5 --include-path source/windows
 ```
 
 Use a narrower path while iterating:
@@ -118,7 +118,7 @@ The generated `refactor-advice.md` is intentionally action-oriented:
 - use pure utilities as safe extraction/reuse candidates
 - regenerate advice after a refactor and check whether pressure moved down or became better isolated
 
-Use `--plan` with `--advice` when an agent needs concrete task cards. The plan expands the highest-priority pressure targets into one-target-per-task scopes with expected outcomes, steps, and verification gates. Use `--plan-limit N` to cap the queue for a small agent batch, and tune `--medium-pressure` / `--high-pressure` when the target project is much smaller or larger than the fasm2 baseline. The JSON forms are better for automated agents; the Markdown forms are better for human review notes or PR comments.
+Use `--plan` with `--advice` when an agent needs concrete task cards. The plan expands the highest-priority pressure targets into one-target-per-task scopes with expected outcomes, steps, and verification gates. Use `--plan-limit N` to cap the queue for a small agent batch, `--include-path TEXT` / `--exclude-path TEXT` to keep tasks inside the intended refactor scope, and tune `--medium-pressure` / `--high-pressure` when the target project is much smaller or larger than the fasm2 baseline. The JSON forms are better for automated agents; the Markdown forms are better for human review notes or PR comments.
 
 After a refactor, compare the new analysis against a previous `report-data.json`:
 

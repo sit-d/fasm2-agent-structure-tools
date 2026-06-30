@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .refactor import AdviceThresholds, build_refactor_advice_from_data
+from .refactor import AdviceFilters, AdviceThresholds, build_refactor_advice_from_data
 
 
 def _task_scope(row: dict[str, Any]) -> str:
@@ -87,8 +87,14 @@ def build_refactor_plan_from_advice(advice: dict[str, Any], *, limit: int = 8) -
     }
 
 
-def build_refactor_plan_from_data(data: dict[str, Any], *, limit: int = 8, thresholds: AdviceThresholds | None = None) -> dict[str, Any]:
-    return build_refactor_plan_from_advice(build_refactor_advice_from_data(data, thresholds), limit=limit)
+def build_refactor_plan_from_data(
+    data: dict[str, Any],
+    *,
+    limit: int = 8,
+    thresholds: AdviceThresholds | None = None,
+    filters: AdviceFilters | None = None,
+) -> dict[str, Any]:
+    return build_refactor_plan_from_advice(build_refactor_advice_from_data(data, thresholds, filters), limit=limit)
 
 
 def refactor_plan_markdown(plan: dict[str, Any], title: str = "Agentic refactor plan") -> str:
@@ -123,10 +129,17 @@ def refactor_plan_markdown(plan: dict[str, Any], title: str = "Agentic refactor 
     return "\n".join(lines)
 
 
-def write_refactor_plan_from_data(out_dir: str | Path, data: dict[str, Any], *, limit: int = 8, thresholds: AdviceThresholds | None = None) -> dict[str, Path]:
+def write_refactor_plan_from_data(
+    out_dir: str | Path,
+    data: dict[str, Any],
+    *,
+    limit: int = 8,
+    thresholds: AdviceThresholds | None = None,
+    filters: AdviceFilters | None = None,
+) -> dict[str, Path]:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    plan = build_refactor_plan_from_data(data, limit=limit, thresholds=thresholds)
+    plan = build_refactor_plan_from_data(data, limit=limit, thresholds=thresholds, filters=filters)
     json_path = out / "refactor-plan.json"
     md_path = out / "refactor-plan.md"
     json_path.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")

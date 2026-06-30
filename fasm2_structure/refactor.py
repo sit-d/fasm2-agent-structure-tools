@@ -17,6 +17,22 @@ class AdviceThresholds:
     high_internal_fanout: int = 8
 
 
+@dataclass(frozen=True)
+class AdviceFilters:
+    include_paths: tuple[str, ...] = ()
+    exclude_paths: tuple[str, ...] = ()
+
+
+def in_scope(row: dict[str, Any], filters: AdviceFilters | None = None) -> bool:
+    filters = filters or AdviceFilters()
+    path = row.get("path", "")
+    if filters.include_paths and not any(token in path for token in filters.include_paths):
+        return False
+    if filters.exclude_paths and any(token in path for token in filters.exclude_paths):
+        return False
+    return True
+
+
 def _callers_and_callees(data: dict[str, Any]) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
     callers: dict[str, set[str]] = {}
     callees: dict[str, set[str]] = {}
@@ -57,10 +73,15 @@ def action_for(row: dict[str, Any], caller_count: int, callee_count: int, thresh
     return "Inspect manually: ABI state survives across calls, so frame/register choreography may hide structure issues."
 
 
-def build_refactor_advice_from_data(data: dict[str, Any], thresholds: AdviceThresholds | None = None) -> dict[str, Any]:
+def build_refactor_advice_from_data(
+    data: dict[str, Any],
+    thresholds: AdviceThresholds | None = None,
+    filters: AdviceFilters | None = None,
+) -> dict[str, Any]:
     thresholds = thresholds or AdviceThresholds()
+    filters = filters or AdviceFilters()
     callers, callees = _callers_and_callees(data)
-    functions = data["functions"]
+    functions = [row for row in data["functions"] if in_scope(row, filters)]
 
     ranked = []
     for row in functions:
@@ -122,6 +143,7 @@ def build_refactor_advice_from_data(data: dict[str, Any], thresholds: AdviceThre
     return {
         "summary": data["summary"],
         "thresholds": thresholds.__dict__,
+        "filters": filters.__dict__,
         "pressure_targets": pressure_targets[:50],
         "pure_utilities": pure_utilities[:50],
         "module_hotspots": module_hotspots[:25],
@@ -137,8 +159,12 @@ def build_refactor_advice_from_data(data: dict[str, Any], thresholds: AdviceThre
     }
 
 
-def build_refactor_advice(model: StructureModel, thresholds: AdviceThresholds | None = None) -> dict[str, Any]:
-    return build_refactor_advice_from_data(build_report_data(model), thresholds)
+def build_refactor_advice(
+    model: StructureModel,
+    thresholds: AdviceThresholds | None = None,
+    filters: AdviceFilters | None = None,
+) -> dict[str, Any]:
+    return build_refactor_advice_from_data(build_report_data(model), thresholds, filters)
 
 
 def advice_markdown(advice: dict[str, Any], title: str = "Agentic refactor advice") -> str:
@@ -179,10 +205,15 @@ def advice_markdown(advice: dict[str, Any], title: str = "Agentic refactor advic
     return "\n".join(lines)
 
 
-def write_refactor_advice_from_data(out_dir: str | Path, data: dict[str, Any], thresholds: AdviceThresholds | None = None) -> dict[str, Path]:
+def write_refactor_advice_from_data(
+    out_dir: str | Path,
+    data: dict[str, Any],
+    thresholds: AdviceThresholds | None = None,
+    filters: AdviceFilters | None = None,
+) -> dict[str, Path]:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    advice = build_refactor_advice_from_data(data, thresholds)
+    advice = build_refactor_advice_from_data(data, thresholds, filters)
     json_path = out / "refactor-advice.json"
     md_path = out / "refactor-advice.md"
     json_path.write_text(json.dumps(advice, indent=2, sort_keys=True) + "\n", encoding="utf-8")
