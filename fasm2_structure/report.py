@@ -269,12 +269,11 @@ render();
 """
 
 
-def write_report(out_dir: str | Path, model: StructureModel) -> dict[str, Path]:
+def write_report_from_data(out_dir: str | Path, data: dict[str, Any]) -> dict[str, Path]:
     out = Path(out_dir)
     mermaid_dir = out / "mermaid"
     out.mkdir(parents=True, exist_ok=True)
     mermaid_dir.mkdir(parents=True, exist_ok=True)
-    data = build_report_data(model)
     data_path = out / "report-data.json"
     data_path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     html_payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
@@ -287,3 +286,7 @@ def write_report(out_dir: str | Path, model: StructureModel) -> dict[str, Path]:
     module_path.write_text(module_mermaid(data), encoding="utf-8")
     pressure_path.write_text(top_pressure_mermaid(data), encoding="utf-8")
     return {"html": html_path, "data": data_path, "scc_mermaid": scc_path, "module_mermaid": module_path, "top_pressure_mermaid": pressure_path}
+
+
+def write_report(out_dir: str | Path, model: StructureModel) -> dict[str, Path]:
+    return write_report_from_data(out_dir, build_report_data(model))

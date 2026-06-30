@@ -7,8 +7,8 @@ from pathlib import Path
 from .analysis import build_structure
 from .asm_parser import parse_tree
 from .graph import layering_to_dict, model_to_dict, write_dot, write_json
-from .refactor import write_refactor_advice
-from .report import write_report
+from .refactor import write_refactor_advice_from_data
+from .report import build_report_data, write_report_from_data
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -66,8 +66,9 @@ def main(argv: list[str] | None = None) -> int:
     write_json(out / "layers.json", layer_info)
     if not args.no_dot:
         write_dot(out / "structure.dot", model)
-    report_paths = write_report(out, model) if args.report else {}
-    advice_paths = write_refactor_advice(out, model) if args.advice else {}
+    report_data = build_report_data(model) if args.report or args.advice else None
+    report_paths = write_report_from_data(out, report_data) if args.report and report_data is not None else {}
+    advice_paths = write_refactor_advice_from_data(out, report_data) if args.advice and report_data is not None else {}
     payload = {"structure": model_to_dict(model), "layers": layer_info}
     if args.format == "json":
         print(json.dumps(payload, indent=2, sort_keys=True))

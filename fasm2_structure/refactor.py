@@ -57,9 +57,8 @@ def action_for(row: dict[str, Any], caller_count: int, callee_count: int, thresh
     return "Inspect manually: ABI state survives across calls, so frame/register choreography may hide structure issues."
 
 
-def build_refactor_advice(model: StructureModel, thresholds: AdviceThresholds | None = None) -> dict[str, Any]:
+def build_refactor_advice_from_data(data: dict[str, Any], thresholds: AdviceThresholds | None = None) -> dict[str, Any]:
     thresholds = thresholds or AdviceThresholds()
-    data = build_report_data(model)
     callers, callees = _callers_and_callees(data)
     functions = data["functions"]
 
@@ -138,6 +137,10 @@ def build_refactor_advice(model: StructureModel, thresholds: AdviceThresholds | 
     }
 
 
+def build_refactor_advice(model: StructureModel, thresholds: AdviceThresholds | None = None) -> dict[str, Any]:
+    return build_refactor_advice_from_data(build_report_data(model), thresholds)
+
+
 def advice_markdown(advice: dict[str, Any], title: str = "Agentic refactor advice") -> str:
     lines = [f"# {title}", ""]
     s = advice["summary"]
@@ -176,12 +179,16 @@ def advice_markdown(advice: dict[str, Any], title: str = "Agentic refactor advic
     return "\n".join(lines)
 
 
-def write_refactor_advice(out_dir: str | Path, model: StructureModel) -> dict[str, Path]:
+def write_refactor_advice_from_data(out_dir: str | Path, data: dict[str, Any]) -> dict[str, Path]:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    advice = build_refactor_advice(model)
+    advice = build_refactor_advice_from_data(data)
     json_path = out / "refactor-advice.json"
     md_path = out / "refactor-advice.md"
     json_path.write_text(json.dumps(advice, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     md_path.write_text(advice_markdown(advice) + "\n", encoding="utf-8")
     return {"refactor_advice_json": json_path, "refactor_advice_md": md_path}
+
+
+def write_refactor_advice(out_dir: str | Path, model: StructureModel) -> dict[str, Path]:
+    return write_refactor_advice_from_data(out_dir, build_report_data(model))
