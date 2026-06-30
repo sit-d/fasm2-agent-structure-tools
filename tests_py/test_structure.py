@@ -7,7 +7,7 @@ from fasm2_structure.analysis import build_structure, condensation_layers, graph
 from fasm2_structure.asm_parser import parse_tree
 from fasm2_structure.cli import main
 from fasm2_structure.compare import compare_report_data, write_comparison
-from fasm2_structure.plan import build_refactor_plan_from_advice, write_refactor_plan_from_data
+from fasm2_structure.plan import build_refactor_plan_from_advice, task_prompt_markdown, write_refactor_plan_and_prompts_from_data, write_refactor_plan_from_data
 from fasm2_structure.refactor import AdviceFilters, AdviceThresholds, build_refactor_advice, write_refactor_advice
 from fasm2_structure.report import build_report_data, write_report
 
@@ -80,6 +80,15 @@ payload db 'x',0
                 self.assertGreater(path.stat().st_size, 0, path)
             plan = build_refactor_plan_from_advice(advice, limit=1)
             self.assertEqual(len(plan["tasks"]), 1)
+            self.assertIn("Required workflow", task_prompt_markdown(plan["tasks"][0]))
+            prompt_paths = write_refactor_plan_and_prompts_from_data(
+                root / "prompt-analysis",
+                report_data,
+                limit=1,
+                thresholds=AdviceThresholds(medium_pressure=1),
+            )
+            self.assertIn("task_prompt_task-01", prompt_paths)
+            self.assertIn("Verification gate", prompt_paths["task_prompt_task-01"].read_text())
             self.assertIn(
                 "Verification",
                 Path(
@@ -109,6 +118,7 @@ payload db 'x',0
                     "1",
                     "--include-path",
                     "sample.asm",
+                    "--task-prompts",
                     "--out",
                     "cli-analysis",
                     "--no-dot",
@@ -117,6 +127,7 @@ payload db 'x',0
             )
             cli_plan = json.loads((root / "cli-analysis" / "refactor-plan.json").read_text())
             self.assertEqual(len(cli_plan["tasks"]), 1)
+            self.assertTrue((root / "cli-analysis" / "task-prompts" / "task-01.md").exists())
 
 
 if __name__ == "__main__":

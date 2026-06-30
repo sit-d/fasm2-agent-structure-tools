@@ -8,7 +8,7 @@ Run the analyzer into a stable output directory before editing the target projec
 
 ```sh
 python -m fasm2_structure /path/to/target source/windows examples tests/ntdll \
-  --report --advice --plan --plan-limit 8 \
+  --report --advice --plan --task-prompts --plan-limit 8 \
   --out /path/to/baseline-analysis
 ```
 
@@ -17,6 +17,7 @@ Keep at least these baseline artifacts:
 - `report-data.json`
 - `refactor-advice.md`
 - `refactor-plan.md`
+- `task-prompts/` when generated with `--task-prompts`
 - `report.html`
 
 ## 2. Pick a scoped task

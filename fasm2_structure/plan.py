@@ -129,6 +129,46 @@ def refactor_plan_markdown(plan: dict[str, Any], title: str = "Agentic refactor 
     return "\n".join(lines)
 
 
+def task_prompt_markdown(task: dict[str, Any]) -> str:
+    lines = [f"# {task['id']}: {task['title']}", ""]
+    lines.append("You are refactoring a fasm2/fasmg-style assembly target using fasm2-agent-structure-tools.")
+    lines.append("")
+    lines.append("## Scope")
+    lines.append(f"- Target: {task['scope']}")
+    lines.append(f"- ABI pressure: {task['abi_pressure']} ({task['pressure_class']})")
+    lines.append(f"- Refactor score: {task['refactor_score']}")
+    lines.append(f"- Reasons: {', '.join(task['reasons'])}")
+    lines.append("")
+    lines.append("## Suggested action")
+    lines.append(task["suggested_action"])
+    lines.append("")
+    lines.append("## Expected outcome")
+    lines.append(task["expected_outcome"])
+    lines.append("")
+    lines.append("## Required workflow")
+    for index, step in enumerate(task["steps"], start=1):
+        lines.append(f"{index}. {step}")
+    lines.append("")
+    lines.append("## Verification gate")
+    for item in task["verification"]:
+        lines.append(f"- {item}")
+    lines.append("")
+    lines.append("Do not edit unrelated pressure targets in the same commit. Preserve semantics over lowering metrics.")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_task_prompts(out_dir: str | Path, plan: dict[str, Any]) -> dict[str, Path]:
+    prompt_dir = Path(out_dir) / "task-prompts"
+    prompt_dir.mkdir(parents=True, exist_ok=True)
+    paths: dict[str, Path] = {}
+    for task in plan["tasks"]:
+        path = prompt_dir / f"{task['id']}.md"
+        path.write_text(task_prompt_markdown(task), encoding="utf-8")
+        paths[f"task_prompt_{task['id']}"] = path
+    return paths
+
+
 def write_refactor_plan_from_data(
     out_dir: str | Path,
     data: dict[str, Any],
@@ -145,3 +185,23 @@ def write_refactor_plan_from_data(
     json_path.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     md_path.write_text(refactor_plan_markdown(plan) + "\n", encoding="utf-8")
     return {"refactor_plan_json": json_path, "refactor_plan_md": md_path}
+
+
+def write_refactor_plan_and_prompts_from_data(
+    out_dir: str | Path,
+    data: dict[str, Any],
+    *,
+    limit: int = 8,
+    thresholds: AdviceThresholds | None = None,
+    filters: AdviceFilters | None = None,
+) -> dict[str, Path]:
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    plan = build_refactor_plan_from_data(data, limit=limit, thresholds=thresholds, filters=filters)
+    json_path = out / "refactor-plan.json"
+    md_path = out / "refactor-plan.md"
+    json_path.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    md_path.write_text(refactor_plan_markdown(plan) + "\n", encoding="utf-8")
+    paths = {"refactor_plan_json": json_path, "refactor_plan_md": md_path}
+    paths.update(write_task_prompts(out, plan))
+    return paths
