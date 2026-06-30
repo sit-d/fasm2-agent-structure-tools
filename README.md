@@ -8,6 +8,7 @@ The first pass is intentionally heuristic and source-preserving. It does not try
 - ABI pressure score: integer `abi_calls + parameter_uses_after_abi_call`
 - hierarchy/layering: Tarjan SCCs and leaf-first condensation layers
 - visual reports that make questionable structure decisions easier to spot
+- agentic refactor advice that turns the metrics into prioritized review actions
 
 ## Install / run from source
 
@@ -15,13 +16,13 @@ From this tool repository:
 
 ```sh
 uv run --with pytest pytest -q
-python -m fasm2_structure /path/to/fasm2-or-fasmg-source --report
+python -m fasm2_structure /path/to/fasm2-or-fasmg-source --report --advice
 ```
 
 Example for analyzing only selected subtrees of a target repo:
 
 ```sh
-python -m fasm2_structure /path/to/fasm2 source/windows examples tests/ntdll --report
+python -m fasm2_structure /path/to/fasm2 source/windows examples tests/ntdll --report --advice
 ```
 
 Use a narrower path while iterating:
@@ -40,6 +41,8 @@ Outputs are written under the target root by default, or under `--out` if suppli
 - `mermaid/scc-condensation.mmd` — focused SCC condensation graph
 - `mermaid/module-graph.mmd` — module/directory dependency graph
 - `mermaid/top-pressure.mmd` — top ABI-pressure neighborhood snapshot
+- `refactor-advice.json` — machine-readable prioritized agent guidance
+- `refactor-advice.md` — human-readable refactor review plan
 
 Internal calls made through ABI-style macros are emitted as `abi-call`: they contribute to both ABI pressure and the function dependency graph.
 
@@ -94,6 +97,21 @@ The report includes:
 - structure smell list for high ABI pressure, high pressure in leaf layers, recursive SCCs, and cross-file SCCs
 
 The Mermaid files are intentionally focused snapshots. They are useful for documentation and quick sharing, while the HTML report is better for choosing the right depth interactively.
+
+## Agentic refactor advice
+
+Use `--advice` when an agent should use the structure data to review code and propose or execute refactors. The advice generator combines ABI pressure, call fan-out, fan-in, SCC/layer placement, module hotspots, and structure smells.
+
+The generated `refactor-advice.md` is intentionally action-oriented:
+
+- start with the highest `refactor_score` item in the intended scope
+- inspect the HTML report at depth 1, then depth 2
+- split `abi_state_pressure` routines into pre-ABI preparation, ABI boundary calls, and post-ABI state use
+- keep high-pressure routines out of low-level leaf layers where possible
+- use pure utilities as safe extraction/reuse candidates
+- regenerate advice after a refactor and check whether pressure moved down or became better isolated
+
+The JSON form is better for automated agents; the Markdown form is better for human review notes or PR comments.
 
 ## Known limitations
 

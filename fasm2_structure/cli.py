@@ -7,6 +7,7 @@ from pathlib import Path
 from .analysis import build_structure
 from .asm_parser import parse_tree
 from .graph import layering_to_dict, model_to_dict, write_dot, write_json
+from .refactor import write_refactor_advice
 from .report import write_report
 
 
@@ -18,6 +19,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--format", choices=["summary", "json"], default="summary", help="stdout format")
     p.add_argument("--no-dot", action="store_true", help="Do not write Graphviz DOT")
     p.add_argument("--report", action="store_true", help="Write interactive HTML report and Mermaid focused graphs")
+    p.add_argument("--advice", action="store_true", help="Write agentic refactor advice JSON and Markdown")
     p.add_argument("--limit", type=int, default=20, help="Rows to print in summary tables")
     return p
 
@@ -65,6 +67,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_dot:
         write_dot(out / "structure.dot", model)
     report_paths = write_report(out, model) if args.report else {}
+    advice_paths = write_refactor_advice(out, model) if args.advice else {}
     payload = {"structure": model_to_dict(model), "layers": layer_info}
     if args.format == "json":
         print(json.dumps(payload, indent=2, sort_keys=True))
@@ -75,6 +78,8 @@ def main(argv: list[str] | None = None) -> int:
         if not args.no_dot:
             print(f"wrote: {out / 'structure.dot'}")
         for label, path in report_paths.items():
+            print(f"wrote {label}: {path}")
+        for label, path in advice_paths.items():
             print(f"wrote {label}: {path}")
     return 0
 

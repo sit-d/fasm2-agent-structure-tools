@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fasm2_structure.analysis import build_structure, condensation_layers, graph_adjacency, tarjan_scc
 from fasm2_structure.asm_parser import parse_tree
+from fasm2_structure.refactor import AdviceThresholds, build_refactor_advice, write_refactor_advice
 from fasm2_structure.report import build_report_data, write_report
 
 
@@ -56,6 +57,13 @@ payload db 'x',0
             self.assertIn("module_graph", report_data)
             paths = write_report(root / "analysis", model)
             for path in paths.values():
+                self.assertTrue(path.exists(), path)
+                self.assertGreater(path.stat().st_size, 0, path)
+            advice = build_refactor_advice(model, AdviceThresholds(medium_pressure=1))
+            self.assertIn("agent_workflow", advice)
+            self.assertTrue(any(row["name"] == "wrapper" for row in advice["pressure_targets"]))
+            advice_paths = write_refactor_advice(root / "analysis", model)
+            for path in advice_paths.values():
                 self.assertTrue(path.exists(), path)
                 self.assertGreater(path.stat().st_size, 0, path)
 
