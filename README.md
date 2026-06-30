@@ -1,5 +1,7 @@
 # fasm2 agent structure tools
 
+[![CI](https://github.com/sit-d/fasm2-agent-structure-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/sit-d/fasm2-agent-structure-tools/actions/workflows/ci.yml)
+
 Python static-analysis helpers for reviewing fasm2/fasmg-style assembly source trees from outside the target repository. The tools are intended for agents and reviewers that need higher-level structure signals before suggesting multi-file implementation changes.
 
 The first pass is intentionally heuristic and source-preserving. It does not try to fully expand fasm2/fasmg macros. Instead it extracts enough structure to guide review and implementation planning:
