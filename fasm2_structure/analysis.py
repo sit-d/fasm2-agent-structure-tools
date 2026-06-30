@@ -8,6 +8,7 @@ from .asm_parser import ABI_MACROS, CALL_RE, IDENT_RE, INSTRUCTIONS, ParseResult
 
 REGISTER_PARAMS_X64 = {"rcx", "rdx", "r8", "r9", "ecx", "edx", "r8d", "r9d", "cl", "dl", "r8b", "r9b"}
 REGISTER_PARAMS_X86 = {"ecx", "edx", "cx", "dx", "cl", "dl"}
+REGISTER_REDEFINITION_OPS = {"mov", "lea", "xor"}
 STACK_PARAM_RE = re.compile(r"\[(?:e|r)?bp\s*\+\s*(?:[1-9][0-9]*|[A-Za-z_.$?@][\w.$?@]*)", re.I)
 MEMREF_RE = re.compile(r"\[([^\]]+)\]")
 
@@ -87,6 +88,9 @@ def count_parameter_uses(line: SourceLine, param_tokens: set[str]) -> int:
     code = line.code
     if not code.strip():
         return 0
+    op = code.strip().split(None, 1)[0].lower()
+    if op == "jrcxz":
+        return 0
     count = 0
     for ident in IDENT_RE.findall(code):
         if ident.lower() in param_tokens:
@@ -94,6 +98,16 @@ def count_parameter_uses(line: SourceLine, param_tokens: set[str]) -> int:
     if STACK_PARAM_RE.search(code):
         count += 1
     return count
+
+
+def redefined_parameter_registers(line: SourceLine, param_tokens: set[str]) -> set[str]:
+    parts = line.code.strip().split(None, 1)
+    if len(parts) != 2 or parts[0].lower() not in REGISTER_REDEFINITION_OPS:
+        return set()
+    dest = parts[1].split(",", 1)[0].strip().lower()
+    if dest.startswith("["):
+        return set()
+    return {dest} if dest in param_tokens else set()
 
 
 def likely_data_reference(line: SourceLine, known_data: set[str]) -> Iterable[str]:
@@ -118,6 +132,7 @@ def build_structure(parsed: ParseResult) -> StructureModel:
             continue
         metric = FunctionMetrics(name=name, path=sym.path, line_no=sym.line_no)
         param_tokens = infer_param_tokens(sym)
+        live_param_tokens = set(param_tokens)
         seen_abi = False
         for idx, line in enumerate(sym.body):
             ins = instruction_of(line)
@@ -143,7 +158,10 @@ def build_structure(parsed: ParseResult) -> StructureModel:
                 continue
 
             if seen_abi:
-                metric.parameter_uses_after_abi_call += count_parameter_uses(line, param_tokens)
+                defs = redefined_parameter_registers(line, live_param_tokens)
+                count_tokens = live_param_tokens - defs
+                metric.parameter_uses_after_abi_call += count_parameter_uses(line, count_tokens)
+                live_param_tokens -= defs
 
             for data_name in likely_data_reference(line, known_data):
                 edges.append(Edge(name, data_name, "data", line.path, line.line_no, line.text.strip()))

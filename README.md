@@ -83,6 +83,8 @@ Current parameter evidence includes:
 - common ABI parameter registers (`rcx`, `rdx`, `r8`, `r9`, `ecx`, `edx` variants)
 - stack parameter patterns such as `[rbp+...]` / `[ebp+...]`
 
+The analyzer tracks simple parameter-register redefinitions after ABI calls (`mov`/`lea`/`xor` to an ABI argument register). This avoids treating deliberate first-argument idioms such as `mov rcx,[mem]` + `jrcxz` + `invoke Api,rcx` as incoming parameter state surviving across an ABI call.
+
 ## Layering interpretation
 
 `layers_leaf_first` in `layers.json` is ordered for implementation work:

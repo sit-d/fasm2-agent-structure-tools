@@ -32,6 +32,16 @@ proc wrapper, arg
         ret
 endp
 
+proc cleanup_idiom
+        invoke MessageBoxA,0,0,0,0
+        mov rcx,[payload]
+        jrcxz cleanup_done
+        invoke MessageBoxA,rcx,0,0,0
+        mov qword [payload],0
+  cleanup_done:
+        ret
+endp
+
 start:
         call helper
         jmp wrapper
@@ -52,12 +62,14 @@ payload db 'x',0
                 model.metrics["wrapper"].abi_calls + model.metrics["wrapper"].parameter_uses_after_abi_call,
             )
             self.assertEqual(model.metrics["wrapper"].pressure_class, "abi_state_pressure")
+            self.assertEqual(model.metrics["cleanup_idiom"].parameter_uses_after_abi_call, 0)
+            self.assertEqual(model.metrics["cleanup_idiom"].pressure_class, "abi_boundary")
             adj = graph_adjacency(model)
             layers = condensation_layers(adj, tarjan_scc(adj))
             self.assertTrue(layers)
             self.assertTrue(any(edge.target == "MessageBoxA" and edge.kind == "abi" for edge in model.edges))
             report_data = build_report_data(model)
-            self.assertEqual(report_data["summary"]["functions"], 3)
+            self.assertEqual(report_data["summary"]["functions"], 4)
             self.assertIn("module_graph", report_data)
             paths = write_report(root / "analysis", model)
             for path in paths.values():
